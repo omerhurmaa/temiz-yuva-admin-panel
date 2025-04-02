@@ -16,7 +16,7 @@ const AdminLayout: React.FC = () => {
     <div className="admin-layout">
       <Navbar bg="dark" variant="dark" expand="lg">
         <Container>
-          <Navbar.Brand as={NavLink} to="/">Yuvam Admin Paneli</Navbar.Brand>
+          <Navbar.Brand as={NavLink} to="/">Temiz Yuva Admin Paneli</Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="me-auto">
@@ -43,7 +43,7 @@ const AdminLayout: React.FC = () => {
 
       <footer className="bg-light py-3 mt-auto">
         <Container className="text-center">
-          <p className="mb-0">© 2024 Yuvam Hizmetleri - Admin Paneli</p>
+          <p className="mb-0">© 2024 Temiz Yuva Hizmetleri - Admin Paneli</p>
         </Container>
       </footer>
     </div>

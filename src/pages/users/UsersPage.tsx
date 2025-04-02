@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Button, Card, Badge, Spinner, Alert } from 'react-bootstrap';
+import React, { useEffect, useState } from 'react';
+import { Table, Button, Modal, Alert, Spinner } from 'react-bootstrap';
+import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 
 // API URL
-const API_URL = 'https://temizyuva.com/api';
+const API_URL = 'https://temizyuva.com';
 
 interface User {
   id: number;
@@ -11,135 +12,167 @@ interface User {
   lastName: string;
   email: string;
   phoneNumber: string;
+  createdAt: string;
   isEmailConfirmed: boolean;
   isAdmin: boolean;
-  createdAt: string;
-  lastLoginAt: string | null;
 }
 
 const UsersPage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+
+  const fetchUsers = async () => {
+    if (!isAuthenticated) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await axios.get(`${API_URL}/api/Admin/users`);
+      
+      if (response.data.isSuccess) {
+        setUsers(response.data.users);
+      } else {
+        throw new Error('API başarısız yanıt döndü');
+      }
+    } catch (err: any) {
+      console.error('Kullanıcılar yüklenirken hata:', err);
+      setError(`Kullanıcılar yüklenirken bir hata oluştu: ${err.message || 'Bilinmeyen hata'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [isAuthenticated]);
 
-  const fetchUsers = async () => {
+  const handleDeleteClick = (userId: number) => {
+    setSelectedUserId(userId);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedUserId) return;
+
     try {
-      setLoading(true);
-      const response = await axios.get(`${API_URL}/Admin/users`);
-      setUsers(response.data);
-      setLoading(false);
+      await axios.delete(`${API_URL}/api/Admin/users/${selectedUserId}`);
+      setUsers(users.filter(user => user.id !== selectedUserId));
+      setShowDeleteModal(false);
+      setSelectedUserId(null);
     } catch (err) {
-      console.error('Kullanıcılar alınamadı:', err);
-      setError('Kullanıcılar yüklenirken bir hata oluştu.');
-      setLoading(false);
-      
-      // Hata durumunda örnek verilerle gösterelim
-      setUsers([
-        {
-          id: 1,
-          firstName: 'Test',
-          lastName: 'User',
-          email: 'test@example.com',
-          phoneNumber: '+905555555555',
-          isEmailConfirmed: false,
-          isAdmin: false,
-          createdAt: '2025-03-31T18:54:39.68733Z',
-          lastLoginAt: null
-        },
-        {
-          id: 2,
-          firstName: 'admin',
-          lastName: 'User',
-          email: 'omerhurma02@gmail.com',
-          phoneNumber: '+905555555555',
-          isEmailConfirmed: true,
-          isAdmin: true,
-          createdAt: '2025-04-01T19:48:23.763253Z',
-          lastLoginAt: '2025-04-01T23:35:11.259377Z'
-        }
-      ]);
+      console.error('Kullanıcı silinirken hata:', err);
+      setError('Kullanıcı silinirken bir hata oluştu');
     }
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('tr-TR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
+    return new Date(dateString).toLocaleDateString('tr-TR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
-  if (loading) {
+  if (!isAuthenticated) {
+    return <Alert variant="warning">Lütfen giriş yapın.</Alert>;
+  }
+
+  if (isLoading) {
     return (
-      <div className="text-center my-5">
-        <Spinner animation="border" variant="primary" />
-        <p className="mt-2">Kullanıcılar yükleniyor...</p>
+      <div className="text-center mt-5">
+        <Spinner animation="border" role="status">
+          <span className="visually-hidden">Yükleniyor...</span>
+        </Spinner>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <Alert variant="danger">
+        {error}
+        <div className="mt-2">
+          <button className="btn btn-primary" onClick={fetchUsers}>
+            Tekrar Dene
+          </button>
+        </div>
+      </Alert>
+    );
+  }
+
   return (
-    <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>Kullanıcı Yönetimi</h1>
-        <Button variant="primary" onClick={fetchUsers}>Yenile</Button>
-      </div>
+    <div className="users-page">
+      <h2 className="mb-4">Kullanıcı Yönetimi</h2>
+      
+      <Table striped bordered hover responsive>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Ad Soyad</th>
+            <th>E-posta</th>
+            <th>Telefon</th>
+            <th>Kayıt Tarihi</th>
+            <th>E-posta Onayı</th>
+            <th>Admin</th>
+            <th>İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((user) => (
+            <tr key={user.id}>
+              <td>{user.id}</td>
+              <td>{`${user.firstName} ${user.lastName}`}</td>
+              <td>{user.email}</td>
+              <td>{user.phoneNumber}</td>
+              <td>{formatDate(user.createdAt)}</td>
+              <td>
+                <span className={`badge ${user.isEmailConfirmed ? 'bg-success' : 'bg-warning'}`}>
+                  {user.isEmailConfirmed ? 'Onaylı' : 'Onaysız'}
+                </span>
+              </td>
+              <td>
+                <span className={`badge ${user.isAdmin ? 'bg-danger' : 'bg-secondary'}`}>
+                  {user.isAdmin ? 'Admin' : 'Kullanıcı'}
+                </span>
+              </td>
+              <td>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleDeleteClick(user.id)}
+                  disabled={user.isAdmin}
+                >
+                  Sil
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
 
-      {error && (
-        <Alert variant="danger">
-          {error}
-          <p className="mb-0 mt-2">Demo veriler gösteriliyor.</p>
-        </Alert>
-      )}
-
-      <Card>
-        <Card.Body>
-          <Table striped bordered hover responsive>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Ad</th>
-                <th>Soyad</th>
-                <th>E-posta</th>
-                <th>Telefon</th>
-                <th>E-posta Onayı</th>
-                <th>Kayıt Tarihi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-                <tr key={user.id}>
-                  <td>{user.id}</td>
-                  <td>{user.firstName}</td>
-                  <td>{user.lastName}</td>
-                  <td>{user.email}</td>
-                  <td>{user.phoneNumber}</td>
-                  <td>
-                    {user.isEmailConfirmed ? (
-                      <Badge bg="success">Onaylı</Badge>
-                    ) : (
-                      <Badge bg="warning">Onay Bekliyor</Badge>
-                    )}
-                  </td>
-                  <td>{formatDate(user.createdAt)}</td>
-                </tr>
-              ))}
-              {users.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="text-center">
-                    Kayıtlı kullanıcı bulunamadı.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </Table>
-        </Card.Body>
-      </Card>
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Kullanıcı Silme</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Bu kullanıcıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            İptal
+          </Button>
+          <Button variant="danger" onClick={handleConfirmDelete}>
+            Sil
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };

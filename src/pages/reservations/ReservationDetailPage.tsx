@@ -49,69 +49,29 @@ const ReservationDetailPage: React.FC = () => {
   const [statusFormData, setStatusFormData] = useState({
     status: '',
     operatorNotes: '',
-    totalPrice: 0
+    totalPrice: 0,
+    markAsPaid: false
   });
   const [submitting, setSubmitting] = useState<boolean>(false);
-
-  useEffect(() => {
-    fetchReservationDetails();
-  }, [id]);
 
   const fetchReservationDetails = async () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_URL}/Reservations/${id}`);
       setReservation(response.data);
-      setStatusFormData({
-        status: response.data.status,
-        operatorNotes: response.data.notes || '',
-        totalPrice: response.data.totalPrice
-      });
       setLoading(false);
     } catch (err) {
       console.error('Rezervasyon detayları alınamadı:', err);
       setError('Rezervasyon detayları yüklenirken bir hata oluştu.');
       setLoading(false);
-      
-      // Hata durumunda örnek veri
-      const demoReservation = {
-        id: parseInt(id || '1'),
-        userId: 1,
-        userFullName: 'Ahmet Yılmaz',
-        email: 'ahmet@example.com',
-        phone: '+905551234567',
-        serviceId: 1,
-        serviceTitle: 'Ev Temizliği',
-        addressId: 1,
-        addressTitle: 'Ev',
-        addressFullAddress: 'Örnek Mahallesi, Örnek Sokak No:1, D:5, Kadıköy, İstanbul',
-        reservationDate: '2024-06-15T00:00:00Z',
-        startTime: '10:00:00',
-        endTime: null,
-        notes: 'Lütfen sabah 10:00\'da gelin.',
-        status: 'Pending',
-        paymentStatus: 'PartiallyPaid',
-        rejectionReason: null,
-        cancellationReason: null,
-        calculatedPrice: 350,
-        discountAmount: 0,
-        discountPercentage: 0,
-        prepaidAmount: 175,
-        finalPrice: 350,
-        totalPrice: 350,
-        createdAt: '2024-04-01T14:30:00Z',
-        updatedAt: null,
-        paymentDate: '2024-04-01T14:30:00Z'
-      };
-      
-      setReservation(demoReservation);
-      setStatusFormData({
-        status: demoReservation.status,
-        operatorNotes: demoReservation.notes || '',
-        totalPrice: demoReservation.totalPrice
-      });
     }
   };
+
+  useEffect(() => {
+    if (id) {
+      fetchReservationDetails();
+    }
+  }, [id]);
 
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -153,7 +113,8 @@ const ReservationDetailPage: React.FC = () => {
         ...reservation!,
         status: statusFormData.status,
         notes: statusFormData.operatorNotes,
-        totalPrice: statusFormData.totalPrice
+        totalPrice: statusFormData.totalPrice,
+        paymentStatus: statusFormData.markAsPaid ? 'Paid' : reservation!.paymentStatus
       });
       
       setSubmitting(false);
@@ -425,6 +386,19 @@ const ReservationDetailPage: React.FC = () => {
                 value={statusFormData.operatorNotes}
                 onChange={handleStatusChange}
                 placeholder="Müşteriye iletilecek notunuzu yazın"
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3" controlId="formPaymentStatus">
+              <Form.Check
+                type="checkbox"
+                label="Ödeme alındı olarak işaretle"
+                name="markAsPaid"
+                checked={statusFormData.markAsPaid}
+                onChange={(e) => setStatusFormData({
+                  ...statusFormData,
+                  markAsPaid: e.target.checked
+                })}
               />
             </Form.Group>
           </Form>

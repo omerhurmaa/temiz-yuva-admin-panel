@@ -40,7 +40,7 @@ const LoginPage: React.FC = () => {
         <Col md={6} className="mx-auto">
           <Card>
             <Card.Header className="bg-primary text-white">
-              <h4 className="mb-0">Yuvam Admin Paneli - Giriş</h4>
+              <h4 className="mb-0">Temiz Yuva Admin Paneli - Giriş</h4>
             </Card.Header>
             <Card.Body>
               {error && (
