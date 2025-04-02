@@ -36,3 +36,80 @@
     transform: rotate(360deg);
   }
 }
+
+/* Temel stiller */
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f8f9fa;
+}
+
+.admin-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Navbar stili */
+.navbar-brand {
+  font-weight: 600;
+}
+
+/* Card stili */
+.card {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.card-header {
+  font-weight: 500;
+}
+
+/* Tablo stilleri */
+.table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+/* Button stilleri */
+.btn {
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Badge stilleri */
+.badge {
+  padding: 0.5em 0.8em;
+  font-weight: 500;
+}
+
+/* Form stilleri */
+.form-label {
+  font-weight: 500;
+}
+
+/* Footer stili */
+footer {
+  margin-top: auto;
+}
+
+/* Login sayfası */
+.login-page {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Responsive düzenlemeler */
+@media (max-width: 768px) {
+  h1 {
+    font-size: 1.75rem;
+  }
+  
+  .table-responsive {
+    font-size: 0.875rem;
+  }
+}

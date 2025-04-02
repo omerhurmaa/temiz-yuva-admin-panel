@@ -1,25 +1,58 @@
 import React from 'react';
-import logo from './logo.svg';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
+
+// Layouts
+import AdminLayout from './layouts/AdminLayout';
+
+// Pages
+import LoginPage from './pages/auth/LoginPage';
+import DashboardPage from './pages/dashboard/DashboardPage';
+import UsersPage from './pages/users/UsersPage';
+import ServicesPage from './pages/services/ServicesPage';
+import ServiceFormPage from './pages/services/ServiceFormPage';
+import ReservationsPage from './pages/reservations/ReservationsPage';
+import ReservationDetailPage from './pages/reservations/ReservationDetailPage';
+
+// Auth Provider
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+
+// Protected Route component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated } = useAuth();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
+};
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          
+          <Route path="/" element={
+            <ProtectedRoute>
+              <AdminLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<DashboardPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="services" element={<ServicesPage />} />
+            <Route path="services/new" element={<ServiceFormPage />} />
+            <Route path="services/edit/:id" element={<ServiceFormPage />} />
+            <Route path="reservations" element={<ReservationsPage />} />
+            <Route path="reservations/:id" element={<ReservationDetailPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 
