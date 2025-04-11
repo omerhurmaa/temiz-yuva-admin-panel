@@ -1,73 +1,78 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Form, Button, Alert, Spinner, Container, Row, Col, Card } from 'react-bootstrap';
-import { useAuth } from '../../contexts/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { Container, Form, Button, Card, Spinner, Alert } from 'react-bootstrap';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-
-// API URL
-const API_URL = 'https://temizyuva.com';
+import { API_BASE_URL } from '../../config/api';
 
 interface ServiceFormData {
   title: string;
   imageUrl: string;
   shortDescription: string;
   description: string;
-  basePrice: number;
-  minPrice: number;
-  maxPrice: number;
+  price: number;
   prepaymentDiscountPercentage: number;
   minPrepaymentPercentage: number;
 }
 
 const ServiceFormPage: React.FC = () => {
-  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { isAuthenticated } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const isEditMode = Boolean(id);
+  
   const [formData, setFormData] = useState<ServiceFormData>({
     title: '',
     imageUrl: '',
     shortDescription: '',
     description: '',
-    basePrice: 0,
-    minPrice: 0,
-    maxPrice: 0,
+    price: 0,
     prepaymentDiscountPercentage: 0,
-    minPrepaymentPercentage: 50
+    minPrepaymentPercentage: 0
   });
+  
+  const [loading, setLoading] = useState<boolean>(false);
+  const [submitLoading, setSubmitLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<boolean>(false);
 
   useEffect(() => {
-    if (id) {
-      fetchService();
+    if (isEditMode) {
+      fetchServiceDetails();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const fetchService = async () => {
+  const fetchServiceDetails = async () => {
+    if (!id) return;
+    
     try {
-      setIsLoading(true);
-      const response = await axios.get(`${API_URL}/api/Services/${id}`);
-      if (response.data && response.data.service) {
-        const service = response.data.service;
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.get(`${API_BASE_URL}/Services/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (response.data) {
+        const serviceData = response.data.data || response.data;
         setFormData({
-          title: service.title || '',
-          imageUrl: service.imageUrl || '',
-          shortDescription: service.shortDescription || '',
-          description: service.description || '',
-          basePrice: service.basePrice || 0,
-          minPrice: service.minPrice || 0,
-          maxPrice: service.maxPrice || 0,
-          prepaymentDiscountPercentage: service.prepaymentDiscountPercentage || 0,
-          minPrepaymentPercentage: service.minPrepaymentPercentage || 50
+          title: serviceData.title || '',
+          imageUrl: serviceData.imageUrl || '',
+          shortDescription: serviceData.shortDescription || '',
+          description: serviceData.description || '',
+          price: serviceData.price || 0,
+          prepaymentDiscountPercentage: serviceData.prepaymentDiscountPercentage || 0,
+          minPrepaymentPercentage: serviceData.minPrepaymentPercentage || 0
         });
       } else {
-        setError('Hizmet bilgileri yüklenirken bir hata oluştu');
+        setError('Hizmet verileri alınamadı.');
       }
-    } catch (err) {
-      console.error('Hizmet yüklenirken hata:', err);
-      setError('Hizmet bilgileri yüklenirken bir hata oluştu');
+    } catch (error) {
+      console.error('Hizmet detayları alınırken hata oluştu:', error);
+      setError('Hizmet bilgileri yüklenirken bir hata oluştu.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -75,190 +80,220 @@ const ServiceFormPage: React.FC = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name.includes('Price') || name.includes('Percentage') ? Number(value) : value
+      [name]: name === 'price' || name === 'prepaymentDiscountPercentage' || name === 'minPrepaymentPercentage'
+        ? parseFloat(value) || 0
+        : value
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAuthenticated) return;
-
+    setSubmitLoading(true);
+    setError(null);
+    setSuccess(false);
+    
     try {
-      setIsLoading(true);
-      setError(null);
-
-      if (id) {
-        // Güncelleme
-        await axios.put(`${API_URL}/api/Services/${id}`, formData);
+      const token = localStorage.getItem('token');
+      
+      if (isEditMode) {
+        // Düzenleme modu - PUT isteği
+        await axios.put(`${API_BASE_URL}/Services/${id}`, formData, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          }
+        });
       } else {
-        // Yeni hizmet
-        await axios.post(`${API_URL}/api/Services`, formData);
+        // Ekleme modu - POST isteği
+        await axios.post(`${API_BASE_URL}/Services`, formData, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          }
+        });
       }
-
-      navigate('/services');
-    } catch (err: any) {
-      console.error('Hizmet kaydedilirken hata:', err);
-      setError(`Hizmet kaydedilirken bir hata oluştu: ${err.message || 'Bilinmeyen hata'}`);
+      
+      setSuccess(true);
+      
+      // 2 saniye bekleyip hizmetler sayfasına yönlendir
+      setTimeout(() => {
+        navigate('/services');
+      }, 2000);
+    } catch (error) {
+      console.error('Hizmet kaydedilirken hata oluştu:', error);
+      setError('Hizmet kaydedilirken bir hata oluştu.');
     } finally {
-      setIsLoading(false);
+      setSubmitLoading(false);
     }
   };
 
-  if (!isAuthenticated) {
-    return <Alert variant="warning">Lütfen giriş yapın.</Alert>;
+  if (loading) {
+    return (
+      <Container>
+        <div className="text-center my-5">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-2">Hizmet bilgileri yükleniyor...</p>
+        </div>
+      </Container>
+    );
   }
 
   return (
-    <Container className="py-4">
-      <Card className="shadow-sm">
-        <Card.Header className="bg-white">
-          <h3 className="mb-0">{id ? 'Hizmet Düzenle' : 'Yeni Hizmet Ekle'}</h3>
-        </Card.Header>
+    <Container>
+      <div className="mb-4">
+        <h1>{isEditMode ? 'Hizmet Düzenle' : 'Yeni Hizmet Ekle'}</h1>
+      </div>
+      
+      <Card>
         <Card.Body>
-          {error && (
-            <Alert variant="danger" className="mb-4">
-              {error}
-            </Alert>
-          )}
-
+          {error && <Alert variant="danger">{error}</Alert>}
+          {success && <Alert variant="success">Hizmet başarıyla {isEditMode ? 'güncellendi' : 'eklendi'}!</Alert>}
+          
           <Form onSubmit={handleSubmit}>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Başlık</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleChange}
-                    required
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Resim URL</Form.Label>
-                  <Form.Control
-                    type="url"
-                    name="imageUrl"
-                    value={formData.imageUrl}
-                    onChange={handleChange}
-                    required
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-
             <Form.Group className="mb-3">
-              <Form.Label>Kısa Açıklama</Form.Label>
+              <Form.Label>Hizmet Adı</Form.Label>
               <Form.Control
-                as="textarea"
-                rows={2}
-                name="shortDescription"
-                value={formData.shortDescription}
+                type="text"
+                name="title"
+                value={formData.title}
                 onChange={handleChange}
+                placeholder="Hizmet adı girin"
                 required
               />
             </Form.Group>
-
+            
+            <Form.Group className="mb-3">
+              <Form.Label>Resim URL'si</Form.Label>
+              <Form.Control
+                type="text"
+                name="imageUrl"
+                value={formData.imageUrl}
+                onChange={handleChange}
+                placeholder="https://example.com/image.jpg"
+              />
+              {formData.imageUrl && (
+                <div className="mt-2">
+                  <small>Önizleme:</small>
+                  <img 
+                    src={formData.imageUrl} 
+                    alt="Önizleme" 
+                    style={{ 
+                      maxWidth: '200px', 
+                      maxHeight: '150px', 
+                      display: 'block',
+                      marginTop: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      padding: '4px'
+                    }} 
+                  />
+                </div>
+              )}
+            </Form.Group>
+            
+            <Form.Group className="mb-3">
+              <Form.Label>Kısa Açıklama</Form.Label>
+              <Form.Control
+                type="text"
+                name="shortDescription"
+                value={formData.shortDescription}
+                onChange={handleChange}
+                placeholder="Kısa açıklama girin (liste sayfasında gösterilir)"
+                required
+                maxLength={150}
+              />
+              <Form.Text className="text-muted">
+                En fazla 150 karakter. {formData.shortDescription.length}/150
+              </Form.Text>
+            </Form.Group>
+            
             <Form.Group className="mb-3">
               <Form.Label>Detaylı Açıklama</Form.Label>
               <Form.Control
                 as="textarea"
-                rows={4}
+                rows={5}
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
+                placeholder="Hizmetin detaylı açıklamasını girin"
                 required
               />
             </Form.Group>
-
-            <Row>
-              <Col md={4}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Normal Fiyat</Form.Label>
-                  <Form.Control
-                    type="number"
-                    name="basePrice"
-                    value={formData.basePrice}
-                    onChange={handleChange}
-                    required
-                    min="0"
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={4}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Minimum Fiyat</Form.Label>
-                  <Form.Control
-                    type="number"
-                    name="minPrice"
-                    value={formData.minPrice}
-                    onChange={handleChange}
-                    required
-                    min="0"
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={4}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Maksimum Fiyat</Form.Label>
-                  <Form.Control
-                    type="number"
-                    name="maxPrice"
-                    value={formData.maxPrice}
-                    onChange={handleChange}
-                    required
-                    min="0"
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Peşinat İndirim Yüzdesi</Form.Label>
-                  <Form.Control
-                    type="number"
-                    name="prepaymentDiscountPercentage"
-                    value={formData.prepaymentDiscountPercentage}
-                    onChange={handleChange}
-                    required
-                    min="0"
-                    max="100"
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Minimum Peşinat Yüzdesi</Form.Label>
-                  <Form.Control
-                    type="number"
-                    name="minPrepaymentPercentage"
-                    value={formData.minPrepaymentPercentage}
-                    onChange={handleChange}
-                    required
-                    min="0"
-                    max="100"
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-
-            <div className="d-flex justify-content-end gap-2">
-              <Button variant="secondary" onClick={() => navigate('/services')}>
-                İptal
-              </Button>
-              <Button variant="primary" type="submit" disabled={isLoading}>
-                {isLoading ? (
+            
+            <Form.Group className="mb-3">
+              <Form.Label>Fiyat (₺)</Form.Label>
+              <Form.Control
+                type="number"
+                name="price"
+                value={formData.price.toString()}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+                required
+              />
+            </Form.Group>
+            
+            <Form.Group className="mb-3">
+              <Form.Label>Ön Ödeme İndirim Oranı (%)</Form.Label>
+              <Form.Control
+                type="number"
+                name="prepaymentDiscountPercentage"
+                value={formData.prepaymentDiscountPercentage.toString()}
+                onChange={handleChange}
+                min="0"
+                max="100"
+                required
+              />
+              <Form.Text className="text-muted">
+                Ön ödeme yapıldığında uygulanacak indirim oranı
+              </Form.Text>
+            </Form.Group>
+            
+            <Form.Group className="mb-3">
+              <Form.Label>Min. Ön Ödeme Oranı (%)</Form.Label>
+              <Form.Control
+                type="number"
+                name="minPrepaymentPercentage"
+                value={formData.minPrepaymentPercentage.toString()}
+                onChange={handleChange}
+                min="0"
+                max="100"
+                required
+              />
+              <Form.Text className="text-muted">
+                İndirim için yapılması gereken minimum ön ödeme oranı
+              </Form.Text>
+            </Form.Group>
+            
+            <div className="d-flex gap-2">
+              <Button 
+                variant="primary" 
+                type="submit"
+                disabled={submitLoading}
+              >
+                {submitLoading ? (
                   <>
-                    <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" />
-                    <span className="ms-2">Kaydediliyor...</span>
+                    <Spinner
+                      as="span"
+                      animation="border"
+                      size="sm"
+                      role="status"
+                      aria-hidden="true"
+                      className="me-2"
+                    />
+                    {isEditMode ? 'Güncelleniyor...' : 'Kaydediliyor...'}
                   </>
                 ) : (
-                  'Kaydet'
+                  isEditMode ? 'Güncelle' : 'Kaydet'
                 )}
+              </Button>
+              
+              <Button 
+                variant="outline-secondary" 
+                onClick={() => navigate('/services')}
+                disabled={submitLoading}
+              >
+                İptal
               </Button>
             </div>
           </Form>

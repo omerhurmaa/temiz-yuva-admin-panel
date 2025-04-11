@@ -1,95 +1,89 @@
-import React, { useState, FormEvent } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap';
-import { useNavigate, Navigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Form, Button, Card, Alert, Spinner } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 const LoginPage: React.FC = () => {
-  const { login, isAuthenticated, isLoading, error } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [validated, setValidated] = useState<boolean>(false);
+  const { login } = useAuth();
 
-  // Eğer zaten giriş yapılmışsa ana sayfaya yönlendir
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const form = e.currentTarget;
-    if (form.checkValidity() === false) {
-      e.stopPropagation();
-      setValidated(true);
-      return;
-    }
-    
+    setError(null);
+    setLoading(true);
+
     try {
-      await login(email, password);
-      navigate('/');
-    } catch (err) {
-      // Hata AuthContext içinde yönetiliyor
+      const success = await login(email, password);
+      if (success) {
+        navigate('/dashboard');
+      } else {
+        setError('Giriş bilgileri hatalı. Lütfen e-posta ve şifrenizi kontrol edin.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Giriş yapılamadı');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Container className="d-flex align-items-center justify-content-center" style={{ minHeight: '100vh' }}>
-      <Row className="w-100">
-        <Col md={6} className="mx-auto">
-          <Card>
-            <Card.Header className="bg-primary text-white">
-              <h4 className="mb-0">Temiz Yuva Admin Paneli - Giriş</h4>
-            </Card.Header>
-            <Card.Body>
-              {error && (
-                <Alert variant="danger">{error}</Alert>
+    <div className="d-flex justify-content-center align-items-center min-vh-100 bg-light">
+      <Card className="w-100" style={{ maxWidth: '400px' }}>
+        <Card.Body>
+          <h2 className="text-center mb-4">Giriş Yap</h2>
+          {error && <Alert variant="danger">{error}</Alert>}
+          <Form onSubmit={handleSubmit}>
+            <Form.Group className="mb-3">
+              <Form.Label>E-posta</Form.Label>
+              <Form.Control
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="ornek@email.com"
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Şifre</Form.Label>
+              <Form.Control
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="Şifrenizi girin"
+              />
+            </Form.Group>
+
+            <Button 
+              variant="primary" 
+              type="submit" 
+              className="w-100"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Spinner
+                    as="span"
+                    animation="border"
+                    size="sm"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  <span className="ms-2">Giriş yapılıyor...</span>
+                </>
+              ) : (
+                'Giriş Yap'
               )}
-              
-              <Form noValidate validated={validated} onSubmit={handleSubmit}>
-                <Form.Group className="mb-3" controlId="formEmail">
-                  <Form.Label>E-posta Adresi</Form.Label>
-                  <Form.Control 
-                    type="email" 
-                    placeholder="E-posta adresinizi girin" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid">
-                    Lütfen geçerli bir e-posta adresi girin.
-                  </Form.Control.Feedback>
-                </Form.Group>
-
-                <Form.Group className="mb-3" controlId="formPassword">
-                  <Form.Label>Şifre</Form.Label>
-                  <Form.Control 
-                    type="password" 
-                    placeholder="Şifrenizi girin" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <Form.Control.Feedback type="invalid">
-                    Lütfen şifrenizi girin.
-                  </Form.Control.Feedback>
-                </Form.Group>
-
-                <Button 
-                  variant="primary" 
-                  type="submit" 
-                  className="w-100"
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
-                </Button>
-              </Form>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+            </Button>
+          </Form>
+        </Card.Body>
+      </Card>
+    </div>
   );
 };
 

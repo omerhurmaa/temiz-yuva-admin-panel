@@ -1,6 +1,6 @@
 import React from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Container, Navbar, Nav, Button } from 'react-bootstrap';
+import { Link, useNavigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const AdminLayout: React.FC = () => {
@@ -13,37 +13,38 @@ const AdminLayout: React.FC = () => {
   };
 
   return (
-    <div className="admin-layout">
+    <div className="d-flex flex-column min-vh-100">
       <Navbar bg="dark" variant="dark" expand="lg">
         <Container>
-          <Navbar.Brand as={NavLink} to="/">Temiz Yuva Admin Paneli</Navbar.Brand>
+          <Navbar.Brand as={Link} to="/">Yuvam Admin Paneli</Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="me-auto">
-              <Nav.Link as={NavLink} to="/">Dashboard</Nav.Link>
-              <Nav.Link as={NavLink} to="/users">Kullanıcılar</Nav.Link>
-              <Nav.Link as={NavLink} to="/services">Hizmetler</Nav.Link>
-              <Nav.Link as={NavLink} to="/reservations">Rezervasyonlar</Nav.Link>
+              <Nav.Link as={Link} to="/dashboard">Dashboard</Nav.Link>
+              <Nav.Link as={Link} to="/users">Kullanıcılar</Nav.Link>
+              <Nav.Link as={Link} to="/services">Hizmetler</Nav.Link>
+              <Nav.Link as={Link} to="/reservations">Rezervasyonlar</Nav.Link>
+              <Nav.Link as={Link} to="/contact-forms">İletişim Formları</Nav.Link>
             </Nav>
             <Nav>
-              {user && (
-                <Navbar.Text className="me-3">
-                  Kullanıcı: {user.role}
-                </Navbar.Text>
-              )}
-              <Button variant="outline-light" onClick={handleLogout}>Çıkış</Button>
+              <Navbar.Text className="me-3">
+                {user?.fullName}
+              </Navbar.Text>
+              <Button variant="outline-light" onClick={handleLogout}>
+                Çıkış Yap
+              </Button>
             </Nav>
           </Navbar.Collapse>
         </Container>
       </Navbar>
 
-      <Container className="mt-4 mb-5">
+      <Container className="flex-grow-1 py-4">
         <Outlet />
       </Container>
 
-      <footer className="bg-light py-3 mt-auto">
-        <Container className="text-center">
-          <p className="mb-0">© 2024 Temiz Yuva Hizmetleri - Admin Paneli</p>
+      <footer className="bg-dark text-white py-3">
+        <Container>
+          <p className="text-center mb-0">© 2024 Yuvam Admin Paneli</p>
         </Container>
       </footer>
     </div>

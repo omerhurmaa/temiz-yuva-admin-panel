@@ -1,207 +1,255 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config/api';
 
-// API URL
-const API_URL = 'https://temizyuva.com/api';
-
-// Token'ı localStorage'da saklayacağımız anahtar
-const TOKEN_KEY = 'auth_token';
-const USER_KEY = 'auth_user';
-
-// Context tipleri
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: any | null;
-  login: (email: string, password: string) => Promise<void>;
+  user: User | null;
+  token: string | null;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  isLoading: boolean;
-  error: string | null;
+  loading: boolean;
 }
 
-// Default context değerleri
-const defaultContext: AuthContextType = {
-  isAuthenticated: false,
-  user: null,
-  login: async () => {},
-  logout: () => {},
-  isLoading: false,
-  error: null
-};
+interface User {
+  id: number;
+  fullName: string;
+  email: string;
+  role: string;
+}
 
-// Context oluştur
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Context provider bileşeni
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [user, setUser] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Başlangıçta yükleniyor olarak ayarlayalım
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // Axios interceptor'ı ekle
-  useEffect(() => {
-    // Global axios default ayarları
-    axios.defaults.baseURL = 'https://temizyuva.com';
+  // Token'ın geçerli olup olmadığını kontrol eden fonksiyon
+  const isTokenValid = (token: string | null) => {
+    if (!token) return false;
     
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    }
-
-    const interceptor = axios.interceptors.response.use(
-      response => response,
-      error => {
-        if (error.response?.status === 401) {
-          console.log('401 Unauthorized error, logging out...');
-          logout();
-          navigate('/login');
-        }
-        return Promise.reject(error);
-      }
-    );
-
-    return () => {
-      axios.interceptors.response.eject(interceptor);
-    };
-  }, [navigate]);
-
-  // Token varsa kullanıcı bilgilerini yükle
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        setIsLoading(true);
-        const token = localStorage.getItem(TOKEN_KEY);
-        const savedUser = localStorage.getItem(USER_KEY);
-        
-        if (token) {
-          // Token'ı header'a ekle
-          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          
-          if (savedUser) {
-            // Eğer localStorage'da kullanıcı bilgisi varsa, onu kullan
-            try {
-              const parsedUser = JSON.parse(savedUser);
-              setUser(parsedUser);
-              setIsAuthenticated(true);
-            } catch (e) {
-              console.error('Kullanıcı bilgisi ayrıştırılamadı:', e);
-              // Eğer kullanıcı bilgisi ayrıştırılamazsa, API'den yeniden al
-              await loadUserData();
-            }
-          } else {
-            // Kullanıcı bilgisi yoksa API'den al
-            await loadUserData();
-          }
-        }
-      } catch (error) {
-        console.error('Oturum kontrolü sırasında hata:', error);
-        logout();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    checkAuth();
-  }, []);
-
-  const loadUserData = async () => {
     try {
-      const response = await axios.get(`${API_URL}/auth/me`);
+      // JWT token yapısı: header.payload.signature
+      const payload = token.split('.')[1];
+      const decodedPayload = JSON.parse(atob(payload));
       
-      if (response.data) {
-        const userData = response.data;
-        const userObject = {
-          id: userData.userId || userData.id,
-          email: userData.email,
-          firstName: userData.firstName || userData.name,
-          lastName: userData.lastName,
-          isAdmin: userData.isAdmin || userData.role === 'Admin'
-        };
-        
-        // Kullanıcı bilgilerini hem state'e hem de localStorage'a kaydet
-        setUser(userObject);
-        localStorage.setItem(USER_KEY, JSON.stringify(userObject));
-        setIsAuthenticated(true);
-      } else {
-        // Kullanıcı bilgileri alınamadı, çıkış yap
-        throw new Error('Kullanıcı bilgileri alınamadı');
-      }
+      // Token süresinin dolup dolmadığını kontrol et
+      const expirationTime = decodedPayload.exp * 1000; // milisaniyeye çevir
+      return Date.now() < expirationTime;
     } catch (error) {
-      console.error('Kullanıcı bilgileri yüklenemedi:', error);
-      logout();
-      throw error;
+      console.error('Token çözümlenirken hata oluştu:', error);
+      return false;
     }
   };
 
-  const login = async (email: string, password: string) => {
+  // Token yenileme fonksiyonu
+  const refreshToken = async (token: string) => {
     try {
-      setIsLoading(true);
-      setError(null);
-      const response = await axios.post(`${API_URL}/auth/login`, {
+      const response = await axios.post(
+        `${API_BASE_URL}/Auth/refresh-token`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      
+      if (response.data && response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        setToken(response.data.token);
+        return response.data.token;
+      }
+      return null;
+    } catch (error) {
+      console.error('Token yenilenirken hata oluştu:', error);
+      return null;
+    }
+  };
+
+  // Token kontrol ve gerekirse yenileme işlemi
+  const checkAndRefreshToken = async () => {
+    const storedToken = localStorage.getItem('token');
+    
+    if (!storedToken) {
+      setIsAuthenticated(false);
+      setUser(null);
+      setToken(null);
+      setLoading(false);
+      return null;
+    }
+    
+    if (isTokenValid(storedToken)) {
+      setToken(storedToken);
+      setIsAuthenticated(true);
+      return storedToken;
+    } else {
+      // Token geçersiz - yenilemeyi dene
+      const newToken = await refreshToken(storedToken);
+      
+      if (newToken) {
+        setToken(newToken);
+        setIsAuthenticated(true);
+        return newToken;
+      } else {
+        // Yenileme başarısız - kullanıcıyı çıkış yaptır
+        localStorage.removeItem('token');
+        setIsAuthenticated(false);
+        setUser(null);
+        setToken(null);
+        return null;
+      }
+    }
+  };
+
+  // Kullanıcı oturum bilgilerini yükle
+  const loadUserSession = async () => {
+    const validToken = await checkAndRefreshToken();
+    
+    if (!validToken) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      // Token varsa kullanıcı bilgilerini al
+      const response = await axios.get(`${API_BASE_URL}/Auth/profile`, {
+        headers: {
+          Authorization: `Bearer ${validToken}`
+        }
+      });
+      
+      if (response.data) {
+        setUser({
+          id: response.data.id,
+          fullName: response.data.fullName,
+          email: response.data.email,
+          role: response.data.role
+        });
+        setIsAuthenticated(true);
+      }
+    } catch (error) {
+      console.error('Kullanıcı bilgileri alınırken hata oluştu:', error);
+      setIsAuthenticated(false);
+      setUser(null);
+      localStorage.removeItem('token');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUserSession();
+
+    // Her 15 dakikada bir token kontrolü/yenileme
+    const tokenCheckInterval = setInterval(() => {
+      checkAndRefreshToken();
+    }, 15 * 60 * 1000); // 15 dakika
+    
+    return () => clearInterval(tokenCheckInterval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Axios interceptor'ı ekle - her istekte token kontrolü
+  useEffect(() => {
+    const interceptor = axios.interceptors.request.use(
+      async (config) => {
+        // İstek gönderilmeden önce token geçerliliğini kontrol et
+        const currentToken = localStorage.getItem('token');
+        
+        if (currentToken && !isTokenValid(currentToken)) {
+          const refreshedToken = await refreshToken(currentToken);
+          
+          if (refreshedToken) {
+            config.headers.Authorization = `Bearer ${refreshedToken}`;
+          } else {
+            // Token yenilenemedi, kullanıcıyı çıkış yaptır
+            logout();
+          }
+        } else if (currentToken) {
+          config.headers.Authorization = `Bearer ${currentToken}`;
+        }
+        
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+    
+    return () => {
+      axios.interceptors.request.eject(interceptor);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/Auth/login`, {
         email,
         password
       });
 
-      // Response içeriğini konsola yazdıralım
-      console.log('Login response:', response.data);
+      // API yanıt yapısını kontrol et
+      console.log('Login API yanıtı:', response.data);
 
+      // isSuccess kontrolü
       if (response.data.isSuccess) {
-        const { token, userId, email, firstName, lastName, isAdmin } = response.data;
-        
-        const userObject = {
-          id: userId,
-          email,
-          firstName,
-          lastName,
-          isAdmin
+        const responseData = response.data.data || response.data;
+        const token = responseData.token || response.data.token;
+        const userData = responseData.user || response.data.user || {};
+
+        if (!token) {
+          throw new Error('Token bulunamadı');
+        }
+
+        localStorage.setItem('token', token);
+        setToken(token);
+
+        // Kullanıcı bilgileri içindeki alanları kontrol et
+        const userToSet = {
+          id: userData.id || 0,
+          fullName: userData.fullName || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
+          email: userData.email || email,
+          role: userData.role || 'User'
         };
-        
-        // Token'ı saklayalım
-        localStorage.setItem(TOKEN_KEY, token);
-        
-        // Kullanıcı bilgilerini localStorage'a kaydet
-        localStorage.setItem(USER_KEY, JSON.stringify(userObject));
-        
-        // Header'a ekleyelim
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        // State'i güncelleyelim
+
+        setUser(userToSet);
         setIsAuthenticated(true);
-        setUser(userObject);
-        
-        // Yönlendirme yapalım
-        navigate('/dashboard');
+        setLoading(false);
+        return true;
       } else {
-        setError(response.data.message || 'Giriş yapılamadı');
+        throw new Error(response.data.message || 'Giriş başarısız');
       }
-    } catch (error: any) {
-      console.error('Login error:', error);
-      setError(error.response?.data?.message || 'Giriş yapılamadı');
-      throw error;
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      console.error('Login hatası:', error);
+      setIsAuthenticated(false);
+      setUser(null);
+      setToken(null);
+      setLoading(false);
+      return false;
     }
   };
 
   const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    delete axios.defaults.headers.common['Authorization'];
+    localStorage.removeItem('token');
     setIsAuthenticated(false);
     setUser(null);
-    navigate('/login');
+    setToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, isLoading, error }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, token, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Hook olarak kullanım
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

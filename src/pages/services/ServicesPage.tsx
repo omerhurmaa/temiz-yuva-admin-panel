@@ -1,249 +1,169 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Alert, Spinner, Badge } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Container, Row, Col, Card, Button, Spinner, Badge } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
-
-// API URL
-const API_URL = 'https://temizyuva.com';
+import { API_BASE_URL } from '../../config/api';
 
 interface Service {
   id: number;
   title: string;
   imageUrl: string;
   shortDescription: string;
-  description?: string;
-  basePrice: number;
-  minPrice: number;
-  maxPrice: number;
+  price: number;
   prepaymentDiscountPercentage: number;
   minPrepaymentPercentage: number;
-  isActive?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-  features?: any[];
-  reservations?: any[];
-}
-
-interface ApiResponse {
-  isSuccess: boolean;
-  services: Service[];
 }
 
 const ServicesPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
   const [services, setServices] = useState<Service[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
-
-  const fetchServices = async () => {
-    if (!isAuthenticated) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const response = await axios.get<ApiResponse>(`${API_URL}/api/Services`);
-      if (response.data.isSuccess) {
-        setServices(response.data.services);
-      } else {
-        setError('Hizmetler yüklenirken bir hata oluştu');
-      }
-    } catch (err: any) {
-      console.error('Hizmetler yüklenirken hata:', err);
-      setError(`Hizmetler yüklenirken bir hata oluştu: ${err.message || 'Bilinmeyen hata'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchServices();
-  }, [isAuthenticated]);
+  }, []);
 
-  const handleDeleteClick = (serviceId: number) => {
-    setSelectedServiceId(serviceId);
-    setShowDeleteModal(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!selectedServiceId) return;
-
+  const fetchServices = async () => {
     try {
-      const response = await axios.delete(`${API_URL}/api/Services/${selectedServiceId}`);
-      if (response.data.success) {
-        setServices(services.filter(service => service.id !== selectedServiceId));
-        setShowDeleteModal(false);
-        setSelectedServiceId(null);
-      } else {
-        setError('Hizmet silinirken bir hata oluştu');
-      }
-    } catch (err) {
-      console.error('Hizmet silinirken hata:', err);
-      setError('Hizmet silinirken bir hata oluştu');
-    }
-  };
-
-  const handleToggleStatus = async (id: number) => {
-    try {
-      const service = services.find(s => s.id === id);
-      if (!service) return;
-
-      const response = await axios.put(`${API_URL}/api/Services/${id}`, {
-        ...service,
-        isActive: !service.isActive
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.get(`${API_BASE_URL}/Services`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
 
-      if (response.data.success) {
-        setServices(services.map(service => 
-          service.id === id ? { ...service, isActive: !service.isActive } : service
-        ));
+      if (response.data.isSuccess) {
+        setServices(response.data.services || []);
       } else {
-        setError('Hizmet durumu güncellenirken bir hata oluştu');
+        setError('Hizmetler yüklenirken bir hata oluştu.');
       }
-    } catch (err) {
-      console.error('Hizmet durumu güncellenirken hata:', err);
-      setError('Hizmet durumu güncellenirken bir hata oluştu');
+      setLoading(false);
+    } catch (error) {
+      console.error('Hizmetler yüklenirken hata oluştu:', error);
+      setError('Hizmetler yüklenirken bir hata oluştu.');
+      setLoading(false);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const handleAddService = () => {
+    navigate('/services/new');
   };
 
+  const handleEditService = (id: number) => {
+    navigate(`/services/edit/${id}`);
+  };
+
+  const handleDeleteService = async (id: number) => {
+    if (window.confirm('Bu hizmeti silmek istediğinizden emin misiniz?')) {
+      try {
+        const token = localStorage.getItem('token');
+        
+        await axios.delete(`${API_BASE_URL}/Services/${id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        // Hizmet başarıyla silindiğinde listeyi güncelle
+        fetchServices();
+      } catch (error) {
+        console.error('Hizmet silinirken hata oluştu:', error);
+        alert('Hizmet silinirken bir hata oluştu.');
+      }
+    }
+  };
+
+  // Fiyat formatı
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('tr-TR', {
-      style: 'currency',
-      currency: 'TRY'
-    }).format(price);
+    return `${price.toLocaleString('tr-TR')} ₺`;
   };
 
-  if (!isAuthenticated) {
-    return <Alert variant="warning">Lütfen giriş yapın.</Alert>;
-  }
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="text-center mt-5">
-        <Spinner animation="border" role="status">
-          <span className="visually-hidden">Yükleniyor...</span>
-        </Spinner>
-      </div>
+      <Container>
+        <div className="text-center my-5">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-2">Hizmetler yükleniyor...</p>
+        </div>
+      </Container>
     );
   }
 
   if (error) {
     return (
-      <Alert variant="danger">
-        {error}
-        <div className="mt-2">
-          <button className="btn btn-primary" onClick={fetchServices}>
-            Tekrar Dene
-          </button>
+      <Container>
+        <div className="text-center my-5">
+          <p className="text-danger">{error}</p>
+          <Button variant="primary" onClick={fetchServices}>Tekrar Dene</Button>
         </div>
-      </Alert>
+      </Container>
     );
   }
 
   return (
-    <div className="services-page">
+    <Container>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>Hizmet Yönetimi</h2>
-        <Button variant="primary" onClick={() => navigate('/services/new')}>
+        <h1>Hizmetler</h1>
+        <Button variant="primary" onClick={handleAddService}>
           Yeni Hizmet Ekle
         </Button>
       </div>
 
-      <Table striped bordered hover responsive>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Başlık</th>
-            <th>Kısa Açıklama</th>
-            <th>Fiyat</th>
-            <th>Peşinat İndirimi</th>
-            <th>Durum</th>
-            <th>Oluşturulma Tarihi</th>
-            <th>İşlemler</th>
-          </tr>
-        </thead>
-        <tbody>
+      {services.length === 0 ? (
+        <div className="text-center my-5">
+          <p>Henüz hizmet bulunmamaktadır.</p>
+          <Button variant="primary" onClick={handleAddService}>
+            İlk Hizmeti Ekle
+          </Button>
+        </div>
+      ) : (
+        <Row>
           {services.map((service) => (
-            <tr key={service.id}>
-              <td>{service.id}</td>
-              <td>{service.title}</td>
-              <td>{service.shortDescription}</td>
-              <td>
-                <div>Normal: {formatPrice(service.basePrice)}</div>
-                <div>Min: {formatPrice(service.minPrice)}</div>
-                <div>Max: {formatPrice(service.maxPrice)}</div>
-              </td>
-              <td>
-                <div>İndirim: %{service.prepaymentDiscountPercentage}</div>
-                <div>Min Peşinat: %{service.minPrepaymentPercentage}</div>
-              </td>
-              <td>
-                <Badge bg={service.isActive ? 'success' : 'danger'}>
-                  {service.isActive ? 'Aktif' : 'Pasif'}
-                </Badge>
-              </td>
-              <td>{service.createdAt ? formatDate(service.createdAt) : '-'}</td>
-              <td>
-                <div className="d-flex gap-2">
-                  <Button
-                    variant="warning"
-                    size="sm"
-                    onClick={() => navigate(`/services/${service.id}`)}
-                  >
-                    Düzenle
-                  </Button>
-                  <Button
-                    variant={service.isActive ? 'danger' : 'success'}
-                    size="sm"
-                    onClick={() => handleToggleStatus(service.id)}
-                  >
-                    {service.isActive ? 'Pasif Yap' : 'Aktif Yap'}
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleDeleteClick(service.id)}
-                  >
-                    Sil
-                  </Button>
-                </div>
-              </td>
-            </tr>
+            <Col key={service.id} lg={4} md={6} className="mb-4">
+              <Card className="h-100">
+                {service.imageUrl && (
+                  <Card.Img 
+                    variant="top" 
+                    src={service.imageUrl} 
+                    alt={service.title}
+                    style={{ height: '180px', objectFit: 'cover' }}
+                  />
+                )}
+                <Card.Body>
+                  <Card.Title>{service.title}</Card.Title>
+                  <Card.Text>{service.shortDescription}</Card.Text>
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <h5 className="mb-0">{formatPrice(service.price)}</h5>
+                    {service.prepaymentDiscountPercentage > 0 && (
+                      <Badge bg="success">
+                        %{service.prepaymentDiscountPercentage} İndirim
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="d-flex gap-2 mt-3">
+                    <Button 
+                      variant="outline-primary" 
+                      onClick={() => handleEditService(service.id)}
+                    >
+                      Düzenle
+                    </Button>
+                    <Button 
+                      variant="outline-danger" 
+                      onClick={() => handleDeleteService(service.id)}
+                    >
+                      Sil
+                    </Button>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
           ))}
-        </tbody>
-      </Table>
-
-      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Hizmet Silme</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          Bu hizmeti silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-            İptal
-          </Button>
-          <Button variant="danger" onClick={handleConfirmDelete}>
-            Sil
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </div>
+        </Row>
+      )}
+    </Container>
   );
 };
 

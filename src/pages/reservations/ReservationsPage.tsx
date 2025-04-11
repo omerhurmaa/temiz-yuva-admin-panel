@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Card, Badge, Spinner, Alert, Form, Row, Col, Tabs, Tab } from 'react-bootstrap';
+import { Table, Button, Card, Badge, Spinner, Alert, Form, Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/api';
 
-// API URL
-const API_URL = 'https://temizyuva.com/api';
-
+// Rezervasyon tipi
 interface Reservation {
   id: number;
   userId: number;
@@ -38,32 +37,21 @@ interface Reservation {
 
 const ReservationsPage: React.FC = () => {
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [pendingReservations, setPendingReservations] = useState<Reservation[]>([]);
-  const [pendingPaymentReservations, setPendingPaymentReservations] = useState<Reservation[]>([]);
-  const [canceledReservations, setCanceledReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<string>('all');
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (activeTab === 'all') {
-      fetchReservations();
-    } else if (activeTab === 'pending') {
-      fetchPendingReservations();
-    } else if (activeTab === 'pending-payment') {
-      fetchPendingPaymentReservations();
-    } else if (activeTab === 'canceled') {
-      fetchCanceledReservations();
-    }
-  }, [activeTab]);
+    fetchReservations();
+  }, []);
 
   const fetchReservations = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/Reservations/all`);
+      // Admin rolü için tüm rezervasyonları getir
+      const response = await axios.get(`${API_BASE_URL}/Reservations/all`);
       setReservations(response.data);
       setLoading(false);
     } catch (err) {
@@ -193,84 +181,14 @@ const ReservationsPage: React.FC = () => {
     }
   };
 
-  const fetchPendingReservations = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_URL}/Reservations/pending`);
-      setPendingReservations(response.data);
-      setLoading(false);
-    } catch (err) {
-      console.error('Bekleyen rezervasyonlar alınamadı:', err);
-      setError('Bekleyen rezervasyonlar yüklenirken bir hata oluştu.');
-      setLoading(false);
-      
-      // Hata durumunda filtreleme ile göster
-      setPendingReservations(reservations.filter(r => r.status === 'Pending'));
-    }
-  };
-
-  const fetchPendingPaymentReservations = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_URL}/Reservations/pending-payment`);
-      setPendingPaymentReservations(response.data);
-      setLoading(false);
-    } catch (err) {
-      console.error('Ödeme bekleyen rezervasyonlar alınamadı:', err);
-      setError('Ödeme bekleyen rezervasyonlar yüklenirken bir hata oluştu.');
-      setLoading(false);
-      
-      // Hata durumunda filtreleme ile göster
-      setPendingPaymentReservations(reservations.filter(r => r.paymentStatus === 'PartiallyPaid' || r.paymentStatus === 'NotPaid'));
-    }
-  };
-
-  const fetchCanceledReservations = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_URL}/Reservations/canceled`);
-      setCanceledReservations(response.data);
-      setLoading(false);
-    } catch (err) {
-      console.error('İptal edilen rezervasyonlar alınamadı:', err);
-      setError('İptal edilen rezervasyonlar yüklenirken bir hata oluştu.');
-      setLoading(false);
-      
-      // Hata durumunda filtreleme ile göster
-      setCanceledReservations(reservations.filter(r => r.status === 'Cancelled'));
-    }
-  };
-
-  const getActiveReservations = () => {
-    switch (activeTab) {
-      case 'pending':
-        return pendingReservations;
-      case 'pending-payment':
-        return pendingPaymentReservations;
-      case 'canceled':
-        return canceledReservations;
-      default:
-        return reservations;
-    }
-  };
-
-  const handleRefresh = () => {
-    if (activeTab === 'all') {
-      fetchReservations();
-    } else if (activeTab === 'pending') {
-      fetchPendingReservations();
-    } else if (activeTab === 'pending-payment') {
-      fetchPendingPaymentReservations();
-    } else if (activeTab === 'canceled') {
-      fetchCanceledReservations();
-    }
-  };
-
-  const filteredReservations = getActiveReservations().filter(reservation => {
+  // Durum filtreleme
+  const filteredReservations = reservations.filter(reservation => {
+    // Durum filtresi
     if (statusFilter !== 'all' && reservation.status !== statusFilter) {
       return false;
     }
     
+    // Tarih filtresi
     if (dateFilter) {
       const reservationDateStr = reservation.reservationDate.split('T')[0];
       if (reservationDateStr !== dateFilter) {
@@ -281,6 +199,7 @@ const ReservationsPage: React.FC = () => {
     return true;
   });
 
+  // Durum badge'i
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Pending':
@@ -298,16 +217,16 @@ const ReservationsPage: React.FC = () => {
     }
   };
 
+  // Tarih formatı
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('tr-TR');
   };
 
-  const formatPrice = (price: number | undefined) => {
-    if (price === undefined) {
-      return 'Bilinmiyor';
-    }
-    return price.toLocaleString('tr-TR') + ' ₺';
+  // Fiyat formatı
+  const formatPrice = (price: number | null | undefined) => {
+    if (price === null || price === undefined) return '0 ₺';
+    return `${price.toLocaleString('tr-TR')} ₺`;
   };
 
   if (loading) {
@@ -323,7 +242,7 @@ const ReservationsPage: React.FC = () => {
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h1>Rezervasyon Yönetimi</h1>
-        <Button variant="primary" onClick={handleRefresh}>Yenile</Button>
+        <Button variant="primary" onClick={fetchReservations}>Yenile</Button>
       </div>
 
       {error && (
@@ -332,17 +251,6 @@ const ReservationsPage: React.FC = () => {
           <p className="mb-0 mt-2">Demo veriler gösteriliyor.</p>
         </Alert>
       )}
-
-      <Tabs
-        activeKey={activeTab}
-        onSelect={(key) => setActiveTab(key || 'all')}
-        className="mb-4"
-      >
-        <Tab eventKey="all" title="Tüm Rezervasyonlar" />
-        <Tab eventKey="pending" title="Bekleyen Rezervasyonlar" />
-        <Tab eventKey="pending-payment" title="Ödeme Bekleyen" />
-        <Tab eventKey="canceled" title="İptal Edilenler" />
-      </Tabs>
 
       <Card className="mb-4">
         <Card.Body>
@@ -390,7 +298,6 @@ const ReservationsPage: React.FC = () => {
                 <th>Adres</th>
                 <th>Toplam Tutar</th>
                 <th>Durum</th>
-                <th>Ödeme Durumu</th>
                 <th>İşlemler</th>
               </tr>
             </thead>
@@ -406,15 +313,6 @@ const ReservationsPage: React.FC = () => {
                   <td>{formatPrice(reservation.totalPrice)}</td>
                   <td>{getStatusBadge(reservation.status)}</td>
                   <td>
-                    {reservation.paymentStatus === 'Paid' ? (
-                      <Badge bg="success">Ödenmiş</Badge>
-                    ) : reservation.paymentStatus === 'PartiallyPaid' ? (
-                      <Badge bg="warning">Kısmen Ödenmiş</Badge>
-                    ) : (
-                      <Badge bg="danger">Ödenmemiş</Badge>
-                    )}
-                  </td>
-                  <td>
                     <Button 
                       variant="outline-primary" 
                       size="sm" 
@@ -427,7 +325,7 @@ const ReservationsPage: React.FC = () => {
               ))}
               {filteredReservations.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="text-center">
+                  <td colSpan={9} className="text-center">
                     Filtrelere uygun rezervasyon bulunamadı.
                   </td>
                 </tr>
